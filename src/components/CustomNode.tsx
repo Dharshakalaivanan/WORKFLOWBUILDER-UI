@@ -1,4 +1,4 @@
-import { Handle, Position } from 'reactflow'
+import Handle from 'reactflow'
 import { useWorkflowStore } from '../store/workflowStore'
 
 const typeToColor: Record<string, string> = {
@@ -41,8 +41,8 @@ export default function CustomNode({ id, data }: { id: string; data: any }) {
 			minWidth:140,
 			textAlign:'center'
 		}}>
-			<Handle type="target" position={Position.Top} style={{ background:typeToColor[data?.type] ?? '#4f8cff' }} />
-			<Handle type="target" position={Position.Left} style={{ background:typeToColor[data?.type] ?? '#4f8cff' }} />
+			<Handle type="target" position="top" style={{ background:typeToColor[data?.type] ?? '#4f8cff' }} />
+			<Handle type="target" position="left" style={{ background:typeToColor[data?.type] ?? '#4f8cff' }} />
 			<div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:8}}>
 				<div style={{fontSize:12, color:'var(--muted)'}}>{data?.type ?? 'Node'}</div>
 				<div style={{display:'flex', gap:6}}>
@@ -68,8 +68,8 @@ export default function CustomNode({ id, data }: { id: string; data: any }) {
 					}}
 				/>
 			)}
-			<Handle type="source" position={Position.Right} style={{ background:typeToColor[data?.type] ?? '#4f8cff' }} />
-			<Handle type="source" position={Position.Bottom} style={{ background:typeToColor[data?.type] ?? '#4f8cff' }} />
+			<Handle type="source" position="right" style={{ background:typeToColor[data?.type] ?? '#4f8cff' }} />
+			<Handle type="source" position="bottom" style={{ background:typeToColor[data?.type] ?? '#4f8cff' }} />
 		</div>
 	)
 }
