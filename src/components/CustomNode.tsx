@@ -1,6 +1,5 @@
-import Handle from 'reactflow'
+import { Handle, Position, Node } from 'reactflow'
 import { useWorkflowStore } from '../store/workflowStore'
-import { Node } from 'reactflow'
 
 const typeToColor: Record<string, string> = {
 	Conversation: '#22c55e',
