@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { Node } from 'reactflow'
 
 export default function NodeConfigPanel() {
-  const { nodes, edges, setGraph, selectedNodeId, voiceProvider, setVoiceProvider } = useWorkflowStore()
+  const { nodes, edges, setGraph, selectedNodeId } = useWorkflowStore()
   const [selectedId, setSelectedId] = useState<string | null>(selectedNodeId || nodes[0]?.id || null)
   
   const node = nodes.find(n => n.id === selectedId) || nodes[0]
@@ -32,21 +32,6 @@ export default function NodeConfigPanel() {
 
   return (
     <div style={{display:'flex', gap:12, flexDirection:'column'}}>
-      {/* Global Voice Provider */}
-      <div>
-        <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>Global Voice Provider</label>
-        <select 
-          className="input" 
-          value={voiceProvider} 
-          onChange={(e)=>setVoiceProvider(e.target.value)}
-        >
-          <option value="elevenlabs">ElevenLabs</option>
-          <option value="openai">OpenAI TTS</option>
-          <option value="azure">Azure Speech</option>
-          <option value="aws">AWS Polly</option>
-          <option value="google">Google Cloud TTS</option>
-        </select>
-      </div>
 
       {/* Node Selection */}
       <div>

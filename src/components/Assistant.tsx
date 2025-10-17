@@ -14,8 +14,10 @@ export default function Assistant() {
   const [inputText, setInputText] = useState('')
   const [isConnected, setIsConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const recognitionRef = useRef<any>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -115,6 +117,49 @@ export default function Assistant() {
     setMessages([])
   }
 
+  // Speech-to-Text using Web Speech API
+  const startRecording = () => {
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      if (!SpeechRecognition) {
+        addMessage('Speech recognition is not supported in this browser.', false)
+        return
+      }
+      const recognition = new SpeechRecognition()
+      recognition.lang = 'en-US'
+      recognition.interimResults = false
+      recognition.maxAlternatives = 1
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript
+        setInputText(prev => (prev ? prev + ' ' : '') + transcript)
+      }
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error', event)
+        addMessage('Microphone error. Please check permissions.', false)
+        setIsRecording(false)
+      }
+      recognition.onend = () => {
+        setIsRecording(false)
+      }
+
+      recognition.start()
+      recognitionRef.current = recognition
+      setIsRecording(true)
+    } catch (e) {
+      console.error(e)
+      addMessage('Unable to start microphone. Check site permissions.', false)
+    }
+  }
+
+  const stopRecording = () => {
+    try {
+      recognitionRef.current?.stop()
+    } finally {
+      setIsRecording(false)
+    }
+  }
+
   return (
     <div style={{
       height: '100%',
@@ -151,6 +196,14 @@ export default function Assistant() {
           >
             {isConnected ? 'Disconnect' : 'Connect'}
           </button>
+        <button
+          className="button"
+          onClick={isRecording ? stopRecording : startRecording}
+          style={{ padding: '4px 8px', fontSize: '12px' }}
+          title={isRecording ? 'Stop microphone' : 'Start microphone'}
+        >
+          {isRecording ? 'Stop Mic' : 'Start Mic'}
+        </button>
         </div>
       </div>
 
