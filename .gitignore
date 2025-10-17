@@ -1,1 +1,18 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Lock files
+package-lock.json
+
+# Build output
+/dist/
+
+# Local env files
+.env
+.env.local
+
+# Editor/OS metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

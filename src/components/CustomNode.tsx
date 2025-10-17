@@ -1,4 +1,4 @@
-import { Handle, Position } from 'reactflow'
+import Handle from 'reactflow'
 import { useWorkflowStore } from '../store/workflowStore'
 import { Node } from 'reactflow'
 
