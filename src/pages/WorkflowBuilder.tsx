@@ -3,6 +3,7 @@ import Header from '../components/Header'
 import NodePanel from '../components/NodePanel'
 import NodeConfigPanel from '../components/NodeConfigPanel'
 import WorkflowCanvas from '../components/WorkflowCanvas'
+import Assistant from '../components/Assistant'
 import { useWorkflowStore } from '../store/workflowStore'
 import { updateWorkflow } from '../api/workflowApi'
 
@@ -24,9 +25,28 @@ export default function WorkflowBuilder() {
     <div style={{height:'100%', display:'flex', flexDirection:'column'}}>
       <Header workflowId={id} />
       <div className="layout">
-        <div className="sidebar-left"><div className="sidebar"><h4>Nodes</h4><NodePanel /></div></div>
-        <div className="canvas"><WorkflowCanvas /></div>
-        <div className="sidebar-right"><div className="sidebar"><h4>Config</h4><NodeConfigPanel /></div></div>
+        <div className="sidebar-left">
+          <div className="sidebar">
+            <h4>Nodes</h4>
+            <NodePanel />
+          </div>
+        </div>
+        <div className="canvas">
+          <WorkflowCanvas />
+        </div>
+        <div className="sidebar-right">
+          <div className="sidebar">
+            <h4>Config</h4>
+            <NodeConfigPanel />
+          </div>
+        </div>
+      </div>
+      <div style={{
+        height: '300px',
+        borderTop: '1px solid var(--border)',
+        background: '#0c0f14'
+      }}>
+        <Assistant />
       </div>
     </div>
   )

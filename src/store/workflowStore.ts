@@ -1,20 +1,41 @@
 import { create } from 'zustand'
+import { Node, Edge } from 'reactflow'
 
-export type NodeData = { id: string; type: string; data?: any; position?: {x:number,y:number} }
-export type EdgeData = { id: string; source: string; target: string }
+export type NodeData = { 
+  id: string; 
+  type: string; 
+  data?: any; 
+  position?: {x:number,y:number} 
+}
+
+export type EdgeData = { 
+  id: string; 
+  source: string; 
+  target: string;
+  animated?: boolean;
+  style?: any;
+}
 
 interface WorkflowState {
   name: string
-  nodes: NodeData[]
-  edges: EdgeData[]
+  nodes: Node[]
+  edges: Edge[]
+  selectedNodeId: string | null
+  voiceProvider: string
   setName: (v: string) => void
-  setGraph: (nodes: NodeData[], edges: EdgeData[]) => void
+  setGraph: (nodes: Node[], edges: Edge[]) => void
+  setSelectedNodeId: (id: string | null) => void
+  setVoiceProvider: (provider: string) => void
 }
 
 export const useWorkflowStore = create<WorkflowState>((set) => ({
   name: 'untitled',
   nodes: [],
   edges: [],
+  selectedNodeId: null,
+  voiceProvider: 'elevenlabs',
   setName: (v) => set({ name: v }),
-  setGraph: (nodes, edges) => set({ nodes, edges })
+  setGraph: (nodes, edges) => set({ nodes, edges }),
+  setSelectedNodeId: (id) => set({ selectedNodeId: id }),
+  setVoiceProvider: (provider) => set({ voiceProvider: provider })
 }))

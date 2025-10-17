@@ -1,24 +1,171 @@
 import { useWorkflowStore } from '../store/workflowStore'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { Node } from 'reactflow'
 
 export default function NodeConfigPanel() {
-  const { nodes, edges, setGraph } = useWorkflowStore()
-  const [selectedId, setSelectedId] = useState<string | null>(nodes[0]?.id ?? null)
+  const { nodes, edges, setGraph, selectedNodeId, voiceProvider, setVoiceProvider } = useWorkflowStore()
+  const [selectedId, setSelectedId] = useState<string | null>(selectedNodeId || nodes[0]?.id || null)
+  
   const node = nodes.find(n => n.id === selectedId) || nodes[0]
+
+  useEffect(() => {
+    if (selectedNodeId) {
+      setSelectedId(selectedNodeId)
+    }
+  }, [selectedNodeId])
 
   const updateLabel = (v: string) => {
     if (!node) return
-    const updated = nodes.map(n => n.id === node.id ? ({ ...n, data: { ...(n as any).data, label: v } }) as any : n as any)
-    setGraph(updated as any, edges as any)
+    const updated = nodes.map(n => 
+      n.id === node.id ? { ...n, data: { ...n.data, label: v } } : n
+    )
+    setGraph(updated, edges)
+  }
+
+  const updateData = (key: string, value: any) => {
+    if (!node) return
+    const updated = nodes.map(n => 
+      n.id === node.id ? { ...n, data: { ...n.data, [key]: value } } : n
+    )
+    setGraph(updated, edges)
   }
 
   return (
-    <div style={{display:'flex', gap:8, flexDirection:'column'}}>
-      <select className="input" value={selectedId ?? ''} onChange={(e)=>setSelectedId(e.target.value)}>
-        {nodes.map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
-      </select>
-      <label style={{fontSize:12, color:'var(--muted)'}}>Label</label>
-      <input className="input" value={(node as any)?.data?.label ?? ''} onChange={(e)=>updateLabel(e.target.value)} />
+    <div style={{display:'flex', gap:12, flexDirection:'column'}}>
+      {/* Global Voice Provider */}
+      <div>
+        <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>Global Voice Provider</label>
+        <select 
+          className="input" 
+          value={voiceProvider} 
+          onChange={(e)=>setVoiceProvider(e.target.value)}
+        >
+          <option value="elevenlabs">ElevenLabs</option>
+          <option value="openai">OpenAI TTS</option>
+          <option value="azure">Azure Speech</option>
+          <option value="aws">AWS Polly</option>
+          <option value="google">Google Cloud TTS</option>
+        </select>
+      </div>
+
+      {/* Node Selection */}
+      <div>
+        <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>Selected Node</label>
+        <select 
+          className="input" 
+          value={selectedId ?? ''} 
+          onChange={(e)=>setSelectedId(e.target.value)}
+        >
+          {nodes.map(n => (
+            <option key={n.id} value={n.id}>
+              {n.data?.label || n.id} ({n.data?.type || 'Unknown'})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {node && (
+        <>
+          {/* Node Label */}
+          <div>
+            <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>Label</label>
+            <input 
+              className="input" 
+              value={node.data?.label ?? ''} 
+              onChange={(e)=>updateLabel(e.target.value)} 
+            />
+          </div>
+
+          {/* Node-specific configurations */}
+          {node.data?.type === 'Conversation' && (
+            <div>
+              <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>Assistant Prompt</label>
+              <textarea 
+                className="input" 
+                value={node.data?.prompt ?? ''} 
+                onChange={(e)=>updateData('prompt', e.target.value)}
+                rows={4}
+                placeholder="Enter the assistant's behavior and instructions..."
+              />
+            </div>
+          )}
+
+          {node.data?.type === 'Transfer Call' && (
+            <>
+              <div>
+                <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>Transfer Number</label>
+                <input 
+                  className="input" 
+                  value={node.data?.transferNumber ?? ''} 
+                  onChange={(e)=>updateData('transferNumber', e.target.value)}
+                  placeholder="+1234567890"
+                />
+              </div>
+              <div>
+                <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>Transfer Message</label>
+                <textarea 
+                  className="input" 
+                  value={node.data?.transferMessage ?? ''} 
+                  onChange={(e)=>updateData('transferMessage', e.target.value)}
+                  rows={3}
+                  placeholder="Message to play before transferring..."
+                />
+              </div>
+            </>
+          )}
+
+          {node.data?.type === 'Call' && (
+            <>
+              <div>
+                <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>Phone Number</label>
+                <input 
+                  className="input" 
+                  value={node.data?.phoneNumber ?? ''} 
+                  onChange={(e)=>updateData('phoneNumber', e.target.value)}
+                  placeholder="+1234567890"
+                />
+              </div>
+              <div>
+                <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>Call Script</label>
+                <textarea 
+                  className="input" 
+                  value={node.data?.callScript ?? ''} 
+                  onChange={(e)=>updateData('callScript', e.target.value)}
+                  rows={4}
+                  placeholder="Script for the call..."
+                />
+              </div>
+            </>
+          )}
+
+          {node.data?.type === 'API Request' && (
+            <>
+              <div>
+                <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>HTTP Method</label>
+                <select 
+                  className="input" 
+                  value={node.data?.method ?? 'GET'} 
+                  onChange={(e)=>updateData('method', e.target.value)}
+                >
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="PUT">PUT</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>API URL</label>
+                <input 
+                  className="input" 
+                  value={node.data?.url ?? ''} 
+                  onChange={(e)=>updateData('url', e.target.value)}
+                  placeholder="https://api.example.com/endpoint"
+                />
+              </div>
+            </>
+          )}
+        </>
+      )}
     </div>
   )
 }
