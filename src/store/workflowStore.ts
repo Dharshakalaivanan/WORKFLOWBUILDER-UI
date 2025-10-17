@@ -21,10 +21,12 @@ interface WorkflowState {
   nodes: Node[]
   edges: Edge[]
   selectedNodeId: string | null
+  selectedEdgeId: string | null
   voiceProvider: string
   setName: (v: string) => void
   setGraph: (nodes: Node[], edges: Edge[]) => void
   setSelectedNodeId: (id: string | null) => void
+  setSelectedEdgeId: (id: string | null) => void
   setVoiceProvider: (provider: string) => void
 }
 
@@ -33,9 +35,11 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
   nodes: [],
   edges: [],
   selectedNodeId: null,
+  selectedEdgeId: null,
   voiceProvider: 'elevenlabs',
   setName: (v) => set({ name: v }),
   setGraph: (nodes, edges) => set({ nodes, edges }),
   setSelectedNodeId: (id) => set({ selectedNodeId: id }),
+  setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
   setVoiceProvider: (provider) => set({ voiceProvider: provider })
 }))

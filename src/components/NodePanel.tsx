@@ -6,10 +6,12 @@ export default function NodePanel() {
 
   const addNode = (type: string) => {
     const id = `${type.toLowerCase().replace(' ', '-')}-${Date.now()}`
+    const baseX = 200 + nodes.length * 50
+    const baseY = 200 + nodes.length * 30
     const node: Node = { 
       id, 
       type: 'custom', 
-      position: { x: 200 + nodes.length * 50, y: 200 + nodes.length * 30 }, 
+      position: { x: baseX, y: baseY }, 
       data: { 
         label: type, 
         type,
@@ -22,6 +24,10 @@ export default function NodePanel() {
         callScript: ''
       } 
     }
+
+    // Auto-attach a Condition node after a new Conversation (vapi-style yes/no flow)
+    // No auto-children. User will connect manually; edge labels added on connect.
+
     setGraph([...nodes, node], edges)
   }
 
