@@ -107,9 +107,9 @@ export default function CustomNode({ id, data }: { id: string; data: any }) {
         <>
           <input
             type="text"
-            placeholder="Trigger keywords (comma-separated)"
-            value={(data?.trigger ?? []).join(', ')}
-            onChange={(e) => updateNodeData('trigger', e.target.value, true)}
+            placeholder="First message"
+            value={data?.firstMessage ?? ''}
+            onChange={(e) => updateNodeData('firstMessage', e.target.value)}
             onMouseDown={(e) => e.stopPropagation()}
             className="nodrag nowheel"
             style={{
@@ -125,7 +125,7 @@ export default function CustomNode({ id, data }: { id: string; data: any }) {
             }}
           />
           <textarea
-            placeholder="Type the assistant response..."
+            placeholder="Assistant behavior & instructions..."
             value={data?.prompt ?? ''}
             onChange={(e) => updateNodeData('prompt', e.target.value)}
             onMouseDown={(e) => e.stopPropagation()}

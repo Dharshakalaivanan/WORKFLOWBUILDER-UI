@@ -15,6 +15,7 @@ export default function Assistant() {
   const [isConnected, setIsConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const [voiceEnabled, setVoiceEnabled] = useState(true)
   const wsRef = useRef<WebSocket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<any>(null)
@@ -83,6 +84,56 @@ export default function Assistant() {
       timestamp: new Date()
     }
     setMessages(prev => [...prev, message])
+    
+    // Speak AI responses using TTS (if voice is enabled)
+    if (!isUser && text && voiceEnabled && 'speechSynthesis' in window) {
+      speakText(text)
+    }
+  }
+
+  const speakText = (text: string) => {
+    if (!('speechSynthesis' in window)) {
+      console.log('Speech synthesis not supported')
+      return
+    }
+    
+    console.log('Speaking text:', text)
+    
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel()
+    
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = 0.8
+    utterance.pitch = 1
+    utterance.volume = 1.0
+    
+    // Wait for voices to load
+    const speak = () => {
+      const voices = window.speechSynthesis.getVoices()
+      const preferredVoice = voices.find(voice => 
+        voice.name.includes('Google') || 
+        voice.name.includes('Microsoft') ||
+        voice.name.includes('Samantha') ||
+        voice.lang.startsWith('en')
+      )
+      if (preferredVoice) {
+        utterance.voice = preferredVoice
+        console.log('Using voice:', preferredVoice.name)
+      }
+      
+      utterance.onstart = () => console.log('Speech started')
+      utterance.onend = () => console.log('Speech ended')
+      utterance.onerror = (e) => console.error('Speech error:', e)
+      
+      window.speechSynthesis.speak(utterance)
+    }
+    
+    // Load voices if not already loaded
+    if (window.speechSynthesis.getVoices().length === 0) {
+      window.speechSynthesis.onvoiceschanged = speak
+    } else {
+      speak()
+    }
   }
 
   const sendMessage = () => {
@@ -140,7 +191,57 @@ export default function Assistant() {
   
     setInputText('');
   };
-  
+
+  const sendTranscribedMessage = (transcript: string) => {
+    if (!transcript.trim() || !isConnected || isLoading) return;
+
+    setIsLoading(true);
+    const wfId = getWorkflowId();
+
+    // Send via WebSocket for quick reply
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ text: transcript, workflow_id: wfId }));
+    }
+
+    // Send via streaming HTTP fetch for cursor typing effect
+    const controller = new AbortController();
+    fetch(`http://localhost:8000/api/workflows/cursor_prompt/${wfId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: transcript }),
+      signal: controller.signal
+    }).then(async (res) => {
+      if (!res.body) return;
+      const reader = res.body.getReader();
+      let streamed = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = new TextDecoder().decode(value);
+        streamed += chunk;
+
+        // Update last assistant message live
+        setMessages(prev => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+
+          if (!last || last.isUser) {
+            next.push({
+              id: Date.now().toString(),
+              text: chunk,
+              isUser: false,
+              timestamp: new Date()
+            });
+          } else {
+            last.text += chunk;
+          }
+
+          return next;
+        });
+      }
+    }).finally(() => setIsLoading(false));
+  };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -156,35 +257,138 @@ export default function Assistant() {
   // Speech-to-Text using Web Speech API
   const startRecording = () => {
     try {
+      // Check for browser support
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
       if (!SpeechRecognition) {
-        addMessage('Speech recognition is not supported in this browser.', false)
+        addMessage('Speech recognition is not supported in this browser. Please use Chrome or Edge.', false)
         return
       }
-      const recognition = new SpeechRecognition()
-      recognition.lang = 'en-US'
-      recognition.interimResults = false
-      recognition.maxAlternatives = 1
 
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript
-        setInputText(prev => (prev ? prev + ' ' : '') + transcript)
-      }
-      recognition.onerror = (event: any) => {
-        console.error('Speech recognition error', event)
-        addMessage('Microphone error. Please check permissions.', false)
-        setIsRecording(false)
-      }
-      recognition.onend = () => {
-        setIsRecording(false)
+      // Stop any existing recognition
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
       }
 
-      recognition.start()
-      recognitionRef.current = recognition
-      setIsRecording(true)
+      // First, speak the first message from the workflow
+      speakFirstMessage()
+
+      // Wait a moment for the first message to finish speaking before starting recognition
+      setTimeout(() => {
+        const recognition = new SpeechRecognition()
+        recognition.continuous = true
+        recognition.interimResults = true
+        recognition.lang = 'en-US'
+        recognition.maxAlternatives = 1
+
+        recognition.onstart = () => {
+          console.log('Speech recognition started')
+          setIsRecording(true)
+          addMessage('🎤 Listening for your response...', false)
+        }
+
+        recognition.onresult = (event: any) => {
+          let finalTranscript = ''
+          let interimTranscript = ''
+          
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript
+            } else {
+              interimTranscript += transcript
+            }
+          }
+          
+          // Show interim results
+          if (interimTranscript) {
+            setInputText(interimTranscript)
+          }
+          
+          // Process final results
+          if (finalTranscript.trim()) {
+            console.log('Speech recognition final result:', finalTranscript)
+            setInputText(finalTranscript)
+            addMessage(`🎤 You said: "${finalTranscript}"`, false)
+            
+            // Auto-send the transcribed message
+            setTimeout(() => {
+              addMessage(finalTranscript, true)
+              sendTranscribedMessage(finalTranscript)
+            }, 500)
+          }
+        }
+
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error)
+          let errorMessage = 'Microphone error: '
+          
+          switch (event.error) {
+            case 'not-allowed':
+              errorMessage += 'Microphone permission denied. Please allow microphone access.'
+              break
+            case 'no-speech':
+              errorMessage += 'No speech detected. Please try again.'
+              break
+            case 'audio-capture':
+              errorMessage += 'No microphone found. Please check your microphone.'
+              break
+            case 'network':
+              errorMessage += 'Network error. Please check your connection.'
+              break
+            default:
+              errorMessage += event.error
+          }
+          
+          addMessage(errorMessage, false)
+          setIsRecording(false)
+        }
+
+        recognition.onend = () => {
+          console.log('Speech recognition ended')
+          setIsRecording(false)
+        }
+
+        recognition.start()
+        recognitionRef.current = recognition
+      }, 2000) // Wait 2 seconds for the first message to finish speaking
+      
     } catch (e) {
-      console.error(e)
-      addMessage('Unable to start microphone. Check site permissions.', false)
+      console.error('Error starting speech recognition:', e)
+      addMessage('Unable to start microphone. Please check browser permissions.', false)
+      setIsRecording(false)
+    }
+  }
+
+  const speakFirstMessage = () => {
+    // Find the first Conversation node in the workflow
+    const conversationNode = nodes.find(node => node.data?.type === 'Conversation')
+    
+    if (conversationNode?.data?.firstMessage) {
+      let firstMessage = conversationNode.data.firstMessage
+      
+      // Extract just the actual first message if it contains instructions
+      if (firstMessage.includes("Start with:")) {
+        const startWithIndex = firstMessage.indexOf("Start with:")
+        if (startWithIndex !== -1) {
+          const afterStartWith = firstMessage.substring(startWithIndex + 11).trim()
+          const quoteStart = afterStartWith.indexOf("'")
+          const quoteEnd = afterStartWith.lastIndexOf("'")
+          if (quoteStart !== -1 && quoteEnd !== -1 && quoteEnd > quoteStart) {
+            firstMessage = afterStartWith.substring(quoteStart + 1, quoteEnd)
+          }
+        }
+      }
+      
+      addMessage(`📞 Starting call: "${firstMessage}"`, false)
+      
+      if (voiceEnabled && 'speechSynthesis' in window) {
+        speakText(firstMessage)
+      }
+    } else {
+      addMessage('📞 Call started - no first message configured', false)
+      if (voiceEnabled && 'speechSynthesis' in window) {
+        speakText('Hello, how can I help you today?')
+      }
     }
   }
 
@@ -239,6 +443,22 @@ export default function Assistant() {
           title={isRecording ? 'Stop microphone' : 'Start microphone'}
         >
           {isRecording ? 'Stop Mic' : 'Start Mic'}
+        </button>
+        <button
+          className={`button ${voiceEnabled ? 'primary' : ''}`}
+          onClick={() => setVoiceEnabled(!voiceEnabled)}
+          style={{ padding: '4px 8px', fontSize: '12px' }}
+          title={voiceEnabled ? 'Disable voice output' : 'Enable voice output'}
+        >
+          {voiceEnabled ? '🔊' : '🔇'}
+        </button>
+        <button
+          className="button"
+          onClick={() => speakText('Hello, this is a test of the voice system.')}
+          style={{ padding: '4px 8px', fontSize: '12px' }}
+          title="Test voice output"
+        >
+          Test Voice
         </button>
         </div>
       </div>
@@ -377,7 +597,8 @@ export default function Assistant() {
         color: 'var(--muted)'
       }}>
         <div>
-          Voice Provider: <strong>{voiceProvider}</strong>
+          Voice Provider: <strong>{voiceProvider}</strong> | 
+          Voice Output: <strong>{voiceEnabled ? 'ON' : 'OFF'}</strong>
         </div>
         <button
           onClick={clearMessages}
