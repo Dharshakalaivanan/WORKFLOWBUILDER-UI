@@ -2,6 +2,7 @@ import { Toaster } from 'react-hot-toast'
 import { useEffect, useState } from 'react'
 import Home from './pages/Home'
 import WorkflowBuilder from './pages/WorkflowBuilder'
+import PublicWorkflow from './pages/PublicWorkflow'
 
 export default function App() {
   const [route, setRoute] = useState(window.location.hash || '#/')
@@ -24,7 +25,7 @@ export default function App() {
         <button className="button" onClick={() => navigate('#/')}>Home</button>
       </div>
       <div className="content">
-        {route.startsWith('#/builder') ? <WorkflowBuilder /> : <Home />}
+        {route.startsWith('#/builder') ? <WorkflowBuilder /> : route.startsWith('#/public/') ? <PublicWorkflow /> : <Home />}
       </div>
       <Toaster position="top-right" />
     </div>
