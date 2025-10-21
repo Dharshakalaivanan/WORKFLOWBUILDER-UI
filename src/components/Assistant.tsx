@@ -86,50 +86,61 @@ export default function Assistant() {
   }
 
   const sendMessage = () => {
-    if (!inputText.trim() || !isConnected || isLoading) return
-
-    const message = inputText.trim()
-    addMessage(message, true)
-    setIsLoading(true)
-
-    // Send to WS for quick reply
+    if (!inputText.trim() || !isConnected || isLoading) return;
+  
+    const message = inputText.trim();
+    addMessage(message, true); // add user message
+    setIsLoading(true);
+  
+    const wfId = getWorkflowId(); // get current workflow ID
+  
+    // --- Send via WebSocket for quick reply ---
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ text: message }))
+      wsRef.current.send(JSON.stringify({ text: message, workflow_id: wfId }));
     }
-
-    // Also call streaming HTTP for typing effect
-    const controller = new AbortController()
-    const wfId = getWorkflowId()
-    fetch('http://localhost:8000/cursor_prompt', {
+  
+    // --- Send via streaming HTTP fetch for cursor typing effect ---
+    const controller = new AbortController();
+    fetch(`http://localhost:8000/api/workflows/cursor_prompt/${wfId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: message, workflow_id: wfId }),
+      body: JSON.stringify({ message }),
       signal: controller.signal
     }).then(async (res) => {
-      if (!res.body) return
-      const reader = res.body.getReader()
-      let streamed = ''
+      if (!res.body) return;
+      const reader = res.body.getReader();
+      let streamed = '';
+  
       while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-        const chunk = new TextDecoder().decode(value)
-        streamed += chunk
-        // update last assistant message live
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = new TextDecoder().decode(value);
+        streamed += chunk;
+  
+        // Update last assistant message live
         setMessages(prev => {
-          const next = [...prev]
-          const last = next[next.length - 1]
+          const next = [...prev];
+          const last = next[next.length - 1];
+  
           if (!last || last.isUser) {
-            next.push({ id: Date.now().toString(), text: chunk, isUser: false, timestamp: new Date() })
+            next.push({
+              id: Date.now().toString(),
+              text: chunk,
+              isUser: false,
+              timestamp: new Date()
+            });
           } else {
-            last.text += chunk
+            last.text += chunk;
           }
-          return next
-        })
+  
+          return next;
+        });
       }
-    }).finally(() => setIsLoading(false))
-
-    setInputText('')
-  }
+    }).finally(() => setIsLoading(false));
+  
+    setInputText('');
+  };
+  
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

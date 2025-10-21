@@ -11,6 +11,8 @@ const defaultNode: Node = {
   type: 'custom' 
 }
 
+const nodeTypes = { custom: CustomNode }
+
 export default function WorkflowCanvas() {
   const { nodes, edges, setGraph, setSelectedNodeId, setSelectedEdgeId } = useWorkflowStore()
 
@@ -71,7 +73,6 @@ export default function WorkflowCanvas() {
 
   const rfNodes = nodes.length ? nodes : [defaultNode]
 
-  const nodeTypes = { custom: CustomNode }
 
   return (
     <div style={{height:'100%'}}>

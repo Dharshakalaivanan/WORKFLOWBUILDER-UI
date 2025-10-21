@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createWorkflow, listWorkflows, Workflow, deleteWorkflow } from '../api/workflowApi'
+import VoicePanel from '../components/VoicePanel'
 import toast from 'react-hot-toast'
 
 export default function Home() {
@@ -43,7 +44,7 @@ export default function Home() {
           <button className="button primary" onClick={onCreate}>+ New Workflow</button>
         </div>
       </div>
-      <div className="grid">
+      <div className="grid" style={{gridTemplateColumns:'1fr 380px', gap:16}}>
         {filtered.map(w => (
           <div key={w.id} className="card">
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', gap:8}}>
@@ -56,6 +57,14 @@ export default function Home() {
             </div>
           </div>
         ))}
+        <div className="card" style={{height:480}}>
+          <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+            <strong>Assistant Voice Chat</strong>
+          </div>
+          <div style={{height: 420}}>
+            <VoicePanel />
+          </div>
+        </div>
       </div>
     </div>
     {showModal && (

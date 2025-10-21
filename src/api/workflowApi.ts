@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api'
 
-export type Workflow = { id: number; name: string; nodes: any[]; edges: any[] }
+export type Workflow = { id: number; slug: string; name: string; nodes: any[]; edges: any[] }
 
 export async function listWorkflows() {
   const res = await axios.get(`${API_BASE}/workflows/`)
@@ -21,4 +21,9 @@ export async function updateWorkflow(id: number, data: Partial<Workflow>) {
 
 export async function deleteWorkflow(id: number) {
   await axios.delete(`${API_BASE}/workflows/${id}`)
+}
+
+export async function getWorkflowBySlug(slug: string) {
+  const res = await axios.get(`${API_BASE}/workflows/slug/${slug}`)
+  return res.data as Workflow
 }
