@@ -1,4 +1,4 @@
-import { Handle, Position, Node } from 'reactflow'
+import { Handle, Position } from '@reactflow/core'
 import { useWorkflowStore } from '../store/workflowStore'
 
 const typeToColor: Record<string, string> = {
@@ -7,7 +7,8 @@ const typeToColor: Record<string, string> = {
 	'Transfer Call': '#f59e0b',
 	'Tool': '#a78bfa',
 	'End Call': '#ef4444',
-	'Call': '#8b5cf6'
+	'Call': '#8b5cf6',
+	'Condition': '#10b981'
 }
 
 export default function CustomNode({ id, data }: { id: string; data: any }) {
@@ -15,28 +16,28 @@ export default function CustomNode({ id, data }: { id: string; data: any }) {
 	const isSelected = selectedNodeId === id
 
 	const updatePrompt = (v: string) => {
-		const next = nodes.map((n: Node) => 
+		const next = nodes.map((n: any) => 
 			n.id === id ? { ...n, data: { ...n.data, prompt: v } } : n
 		)
 		setGraph(next, edges)
 	}
 
 	const updateData = (key: string, value: any) => {
-		const next = nodes.map((n: Node) => 
+		const next = nodes.map((n: any) => 
 			n.id === id ? { ...n, data: { ...n.data, [key]: value } } : n
 		)
 		setGraph(next, edges)
 	}
 
 	const removeNode = () => {
-		const remainingNodes = nodes.filter((n: Node) => n.id !== id)
+		const remainingNodes = nodes.filter((n: any) => n.id !== id)
 		const remainingEdges = edges.filter((e: any) => e.source !== id && e.target !== id)
 		setGraph(remainingNodes, remainingEdges)
 	}
 
 	const duplicateNode = () => {
 		const suffix = Math.floor(Math.random()*10000)
-		const base = nodes.find((n: Node) => n.id === id)
+		const base = nodes.find((n: any) => n.id === id)
 		if (!base) return
 		const newId = `${id}-copy-${suffix}`
 		const newNode = { 
@@ -91,6 +92,7 @@ export default function CustomNode({ id, data }: { id: string; data: any }) {
 					}}
 				/>
 			)}
+
 
 			{data?.type === 'Transfer Call' && (
 				<div style={{display:'flex', flexDirection:'column', gap:6}}>
@@ -158,6 +160,66 @@ export default function CustomNode({ id, data }: { id: string; data: any }) {
 				</div>
 			)}
 
+			{/* Condition node: route based on text/flag with positive/negative/fallback */}
+			{data?.type === 'Condition' && (
+				<div style={{display:'flex', flexDirection:'column', gap:8}}>
+					<input
+						placeholder="Condition key (e.g. intent, status)"
+						value={data?.conditionKey ?? ''}
+						onChange={(e)=>updateData('conditionKey', e.target.value)}
+						onMouseDown={(e)=>e.stopPropagation()}
+						onClick={(e)=>e.stopPropagation()}
+						className="nodrag nowheel"
+						style={{
+							width:'100%', height:28,
+							background:'#0b0e13', color:'var(--text)', border:'1px solid var(--border)',
+							borderRadius:4, padding:'0 8px', fontSize:12
+						}}
+					/>
+					<div style={{display:'flex', gap:6}}>
+						<input
+							placeholder="Positive match (comma-separated)"
+							value={data?.positiveKeywords ?? ''}
+							onChange={(e)=>updateData('positiveKeywords', e.target.value)}
+							onMouseDown={(e)=>e.stopPropagation()}
+							onClick={(e)=>e.stopPropagation()}
+							className="nodrag nowheel"
+							style={{
+								flex:1, height:28,
+								background:'#0b0e13', color:'var(--text)', border:'1px solid var(--border)',
+								borderRadius:4, padding:'0 8px', fontSize:12
+							}}
+						/>
+						<input
+							placeholder="Negative match (comma-separated)"
+							value={data?.negativeKeywords ?? ''}
+							onChange={(e)=>updateData('negativeKeywords', e.target.value)}
+							onMouseDown={(e)=>e.stopPropagation()}
+							onClick={(e)=>e.stopPropagation()}
+							className="nodrag nowheel"
+							style={{
+								flex:1, height:28,
+								background:'#0b0e13', color:'var(--text)', border:'1px solid var(--border)',
+								borderRadius:4, padding:'0 8px', fontSize:12
+							}}
+						/>
+					</div>
+					<input
+						placeholder="Fallback message (when no match)"
+						value={data?.fallbackMessage ?? ''}
+						onChange={(e)=>updateData('fallbackMessage', e.target.value)}
+						onMouseDown={(e)=>e.stopPropagation()}
+						onClick={(e)=>e.stopPropagation()}
+						className="nodrag nowheel"
+						style={{
+							width:'100%', height:28,
+							background:'#0b0e13', color:'var(--text)', border:'1px solid var(--border)',
+							borderRadius:4, padding:'0 8px', fontSize:12
+						}}
+					/>
+				</div>
+			)}
+
 			{data?.type === 'Call' && (
 				<div style={{display:'flex', flexDirection:'column', gap:6}}>
 					<input
@@ -189,8 +251,9 @@ export default function CustomNode({ id, data }: { id: string; data: any }) {
 				</div>
 			)}
 
-			<Handle type="source" position={Position.Right} style={{ background:typeToColor[data?.type] ?? '#4f8cff' }} />
-			<Handle type="source" position={Position.Bottom} style={{ background:typeToColor[data?.type] ?? '#4f8cff' }} />
+			{/* Branch handles with ids for routing */}
+			<Handle id="positive" type="source" position={Position.Right} style={{ background:typeToColor[data?.type] ?? '#22c55e' }} />
+			<Handle id="negative" type="source" position={Position.Bottom} style={{ background:typeToColor[data?.type] ?? '#ef4444' }} />
 		</div>
 	)
 }

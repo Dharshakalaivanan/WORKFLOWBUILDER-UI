@@ -92,16 +92,41 @@ export default function Assistant() {
     addMessage(message, true)
     setIsLoading(true)
 
+    // Send to WS for quick reply
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        text: message,
-        workflow: {
-          nodes,
-          edges,
-          voiceProvider
-        }
-      }))
+      wsRef.current.send(JSON.stringify({ text: message }))
     }
+
+    // Also call streaming HTTP for typing effect
+    const controller = new AbortController()
+    const wfId = getWorkflowId()
+    fetch('http://localhost:8000/cursor_prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: message, workflow_id: wfId }),
+      signal: controller.signal
+    }).then(async (res) => {
+      if (!res.body) return
+      const reader = res.body.getReader()
+      let streamed = ''
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        const chunk = new TextDecoder().decode(value)
+        streamed += chunk
+        // update last assistant message live
+        setMessages(prev => {
+          const next = [...prev]
+          const last = next[next.length - 1]
+          if (!last || last.isUser) {
+            next.push({ id: Date.now().toString(), text: chunk, isUser: false, timestamp: new Date() })
+          } else {
+            last.text += chunk
+          }
+          return next
+        })
+      }
+    }).finally(() => setIsLoading(false))
 
     setInputText('')
   }
@@ -352,7 +377,7 @@ export default function Assistant() {
         </button>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
