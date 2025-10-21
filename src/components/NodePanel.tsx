@@ -16,6 +16,7 @@ export default function NodePanel() {
         label: type, 
         type,
         prompt: '',
+        firstMessage: '',
         transferNumber: '',
         transferMessage: '',
         method: 'GET',

@@ -82,16 +82,27 @@ export default function NodeConfigPanel() {
 
           {/* Node-specific configurations */}
           {node.data?.type === 'Conversation' && (
-            <div>
-              <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>Assistant Prompt</label>
-              <textarea 
-                className="input" 
-                value={node.data?.prompt ?? ''} 
-                onChange={(e)=>updateData('prompt', e.target.value)}
-                rows={4}
-                placeholder="Enter the assistant's behavior and instructions..."
-              />
-            </div>
+            <>
+              <div>
+                <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>First Message</label>
+                <input 
+                  className="input" 
+                  value={node.data?.firstMessage ?? ''} 
+                  onChange={(e)=>updateData('firstMessage', e.target.value)}
+                  placeholder="What the AI says when the call starts..."
+                />
+              </div>
+              <div>
+                <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>Assistant Behavior</label>
+                <textarea 
+                  className="input" 
+                  value={node.data?.prompt ?? ''} 
+                  onChange={(e)=>updateData('prompt', e.target.value)}
+                  rows={4}
+                  placeholder="Enter the assistant's behavior and instructions..."
+                />
+              </div>
+            </>
           )}
 
           {node.data?.type === 'Transfer Call' && (
@@ -155,7 +166,7 @@ export default function NodeConfigPanel() {
                   <option value="POST">POST</option>
                   <option value="PUT">PUT</option>
                   <option value="DELETE">DELETE</option>
-                </select>
+      </select>
               </div>
               <div>
                 <label style={{fontSize:12, color:'var(--muted)', marginBottom:4, display:'block'}}>API URL</label>
