@@ -39,15 +39,16 @@ export default function Assistant() {
 
     ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data)
+        const data = JSON.parse(event.data);
         if (data.reply) {
-          addMessage(data.reply, false)
-          setIsLoading(false)
+          addMessage(data.reply, false);   // show in chat
+          speak(data.reply);               // speak aloud
+          setIsLoading(false);
         }
       } catch (error) {
-        console.error('Error parsing message:', error)
+        console.error('Error parsing message:', error);
       }
-    }
+    };
 
     ws.onclose = () => {
       setIsConnected(false)
@@ -100,43 +101,44 @@ export default function Assistant() {
     }
   
     // --- Send via streaming HTTP fetch for cursor typing effect ---
-    const controller = new AbortController();
-    fetch(`http://localhost:8000/api/workflows/cursor_prompt/${wfId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message }),
-      signal: controller.signal
-    }).then(async (res) => {
-      if (!res.body) return;
-      const reader = res.body.getReader();
-      let streamed = '';
+    // const controller = new AbortController();
+    // fetch(`http://localhost:8000/api/workflows/cursor_prompt/${wfId}`, {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({ message }),
+    //   signal: controller.signal
+    // }).then(async (res) => {
+    //   if (!res.body) return;
+    //   const reader = res.body.getReader();
+    //   let streamed = '';
   
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const chunk = new TextDecoder().decode(value);
-        streamed += chunk;
+    //   while (true) {
+    //     const { value, done } = await reader.read();
+    //     if (done) break;
+    //     const chunk = new TextDecoder().decode(value);
+    //     streamed += chunk;
   
-        // Update last assistant message live
-        setMessages(prev => {
-          const next = [...prev];
-          const last = next[next.length - 1];
+    //     // Update last assistant message live
+    //     setMessages(prev => {
+    //       debugger
+    //       const next = [...prev];
+    //       const last = next[next.length - 1];
   
-          if (!last || last.isUser) {
-            next.push({
-              id: Date.now().toString(),
-              text: chunk,
-              isUser: false,
-              timestamp: new Date()
-            });
-          } else {
-            last.text += chunk;
-          }
+    //       if (!last || last.isUser) {
+    //         next.push({
+    //           id: Date.now().toString(),
+    //           text: chunk,
+    //           isUser: false,
+    //           timestamp: new Date()
+    //         });
+    //       } else {
+    //         last.text += chunk;
+    //       }
   
-          return next;
-        });
-      }
-    }).finally(() => setIsLoading(false));
+    //       return next;
+    //     });
+    //   }
+    // }).finally(() => setIsLoading(false));
   
     setInputText('');
   };
@@ -195,6 +197,19 @@ export default function Assistant() {
       setIsRecording(false)
     }
   }
+
+  const speak = (text: string) => {
+    if (!("speechSynthesis" in window)) {
+      console.warn("Text-to-Speech not supported in this browser.");
+      return;
+    }
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-US";
+    utterance.rate = 1;   // speed
+    utterance.pitch = 1;  // voice pitch
+    window.speechSynthesis.speak(utterance);
+  };
 
   return (
     <div style={{
