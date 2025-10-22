@@ -20,15 +20,73 @@ export default function CallInterface({ workflowId, onClose }: CallInterfaceProp
   const [callDuration, setCallDuration] = useState(0)
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected')
   const [userInput, setUserInput] = useState('')
+  const [isListening, setIsListening] = useState(false)
   
   const wsRef = useRef<WebSocket | null>(null)
   const timerRef = useRef<number | null>(null)
   const transcriptEndRef = useRef<HTMLDivElement>(null)
+  const recognitionRef = useRef<any>(null)
 
   useEffect(() => {
     // Auto-scroll transcript to bottom
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [transcript])
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
+      recognitionRef.current = new SpeechRecognition()
+      recognitionRef.current.continuous = true
+      recognitionRef.current.interimResults = false
+      recognitionRef.current.lang = 'en-US'
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[event.results.length - 1][0].transcript
+        console.log('Speech recognized:', transcript)
+        sendMessage(transcript)
+      }
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error)
+        if (event.error === 'no-speech') {
+          // User didn't speak, just restart
+          if (isListening && isCallActive) {
+            recognitionRef.current?.start()
+          }
+        }
+      }
+
+      recognitionRef.current.onend = () => {
+        // Restart if still in call and not muted
+        if (isListening && isCallActive && !isMuted) {
+          try {
+            recognitionRef.current?.start()
+          } catch (e) {
+            console.log('Recognition already started')
+          }
+        }
+      }
+    } else {
+      console.warn('Speech recognition not supported in this browser')
+      toast.error('Speech recognition not supported. Please use Chrome or Edge.')
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
+    }
+  }, [])
+
+  // Handle listening state changes
+  useEffect(() => {
+    if (isCallActive && !isMuted) {
+      startListening()
+    } else {
+      stopListening()
+    }
+  }, [isCallActive, isMuted])
 
   useEffect(() => {
     if (isCallActive) {
@@ -55,6 +113,9 @@ export default function CallInterface({ workflowId, onClose }: CallInterfaceProp
 
   const speakText = (text: string) => {
     if (!isMuted && 'speechSynthesis' in window) {
+      // Stop listening while speaking
+      stopListening()
+      
       // Cancel any ongoing speech
       window.speechSynthesis.cancel()
       
@@ -63,7 +124,38 @@ export default function CallInterface({ workflowId, onClose }: CallInterfaceProp
       utterance.pitch = 1.0
       utterance.volume = 1.0
       
+      // Resume listening after speaking
+      utterance.onend = () => {
+        if (isCallActive && !isMuted) {
+          setTimeout(() => startListening(), 500)
+        }
+      }
+      
       window.speechSynthesis.speak(utterance)
+    }
+  }
+
+  const startListening = () => {
+    if (recognitionRef.current && !isListening) {
+      try {
+        recognitionRef.current.start()
+        setIsListening(true)
+        console.log('Started listening')
+      } catch (e) {
+        console.log('Recognition already active')
+      }
+    }
+  }
+
+  const stopListening = () => {
+    if (recognitionRef.current && isListening) {
+      try {
+        recognitionRef.current.stop()
+        setIsListening(false)
+        console.log('Stopped listening')
+      } catch (e) {
+        console.log('Error stopping recognition')
+      }
     }
   }
 
@@ -157,6 +249,9 @@ export default function CallInterface({ workflowId, onClose }: CallInterfaceProp
   }
 
   const endCall = () => {
+    // Stop listening
+    stopListening()
+    
     // Stop any ongoing speech
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel()
@@ -173,14 +268,23 @@ export default function CallInterface({ workflowId, onClose }: CallInterfaceProp
   }
 
   const toggleMute = () => {
-    setIsMuted(!isMuted)
+    const newMutedState = !isMuted
+    setIsMuted(newMutedState)
     
-    // Stop speech if muting
-    if (!isMuted && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel()
+    if (newMutedState) {
+      // Muting: stop listening and speaking
+      stopListening()
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel()
+      }
+      toast('Muted - Microphone off')
+    } else {
+      // Unmuting: start listening
+      if (isCallActive) {
+        startListening()
+      }
+      toast('Unmuted - Microphone on')
     }
-    
-    toast(isMuted ? 'Unmuted' : 'Muted')
   }
   
   const handleSendMessage = (e?: React.FormEvent) => {
@@ -377,6 +481,32 @@ export default function CallInterface({ workflowId, onClose }: CallInterfaceProp
               Send
             </button>
           </form>
+        )}
+
+        {/* Listening Indicator */}
+        {isCallActive && isListening && !isMuted && (
+          <div style={{
+            padding: '12px',
+            textAlign: 'center',
+            background: '#16a34a',
+            color: '#ffffff',
+            fontSize: '14px',
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            animation: 'pulse 2s infinite'
+          }}>
+            <span style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: '#ffffff',
+              animation: 'blink 1s infinite'
+            }} />
+            🎤 Listening...
+          </div>
         )}
 
         {/* Controls */}
