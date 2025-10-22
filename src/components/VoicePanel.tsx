@@ -20,7 +20,7 @@ export default function VoicePanel({ workflowId }: { workflowId?: number }) {
 	useEffect(() => {
 		(async () => {
 			try {
-				const base = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api'
+				const base =  'http://localhost:8000/api'
 				const res = await fetch(`${base}/conversations`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },

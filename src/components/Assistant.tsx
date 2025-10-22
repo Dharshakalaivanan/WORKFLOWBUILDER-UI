@@ -163,27 +163,35 @@ export default function Assistant() {
         addMessage('Speech recognition is not supported in this browser.', false)
         return
       }
-      const recognition = new SpeechRecognition()
-      recognition.lang = 'en-US'
-      recognition.interimResults = false
-      recognition.maxAlternatives = 1
+      
+      // First, speak the first message from the workflow
+      speakFirstMessage()
+      
+      // Wait for the first message to finish speaking before starting recognition
+      setTimeout(() => {
+        const recognition = new SpeechRecognition()
+        recognition.lang = 'en-US'
+        recognition.interimResults = false
+        recognition.maxAlternatives = 1
 
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript
-        setInputText(prev => (prev ? prev + ' ' : '') + transcript)
-      }
-      recognition.onerror = (event: any) => {
-        console.error('Speech recognition error', event)
-        addMessage('Microphone error. Please check permissions.', false)
-        setIsRecording(false)
-      }
-      recognition.onend = () => {
-        setIsRecording(false)
-      }
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript
+          setInputText(prev => (prev ? prev + ' ' : '') + transcript)
+        }
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error', event)
+          addMessage('Microphone error. Please check permissions.', false)
+          setIsRecording(false)
+        }
+        recognition.onend = () => {
+          setIsRecording(false)
+        }
 
-      recognition.start()
-      recognitionRef.current = recognition
-      setIsRecording(true)
+        recognition.start()
+        recognitionRef.current = recognition
+        setIsRecording(true)
+      }, 3000) // Wait 3 seconds for the first message to finish speaking
+      
     } catch (e) {
       console.error(e)
       addMessage('Unable to start microphone. Check site permissions.', false)
@@ -209,6 +217,35 @@ export default function Assistant() {
     utterance.rate = 1;   // speed
     utterance.pitch = 1;  // voice pitch
     window.speechSynthesis.speak(utterance);
+  };
+
+  const speakFirstMessage = () => {
+    // Find the first Conversation node in the workflow
+    const conversationNode = nodes.find(node => 
+      node.data?.type === 'conversation' || 
+      (node.data?.data && node.data.data.type === 'conversation')
+    )
+
+    let firstMessage = ''
+    
+    if (conversationNode) {
+      // Handle both old and new data structures
+      const nodeData = conversationNode.data?.data || conversationNode.data
+      firstMessage = nodeData?.messagePlan?.firstMessage || nodeData?.firstMessage || ''
+    }
+
+    if (firstMessage) {
+      addMessage(`📞 Starting call: "${firstMessage}"`, false)
+      
+      if ('speechSynthesis' in window) {
+        speak(firstMessage)
+      }
+    } else {
+      addMessage('📞 Call started - no first message configured', false)
+      if ('speechSynthesis' in window) {
+        speak('Hello, how can I help you today?')
+      }
+    }
   };
 
   return (
