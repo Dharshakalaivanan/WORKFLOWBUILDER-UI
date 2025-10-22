@@ -1,44 +1,100 @@
-import React, { useCallback } from 'react'
-import ReactFlow, { Background, MiniMap, Controls, addEdge, applyNodeChanges, applyEdgeChanges, Connection, Edge, Node, NodeChange, EdgeChange } from 'reactflow'
+import React, { useCallback, useEffect } from 'react'
+import ReactFlow, { Background, MiniMap, Controls, addEdge, applyNodeChanges, applyEdgeChanges, Connection, Edge, Node, NodeChange, EdgeChange, useReactFlow } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { useWorkflowStore } from '../store/workflowStore'
-import CustomNode from './CustomNode'
+import { useWorkflowStore, VapiNodeData } from '../store/workflowStore'
+import VapiNode from './VapiNode'
 
-const defaultNode: Node = { 
-  id: 'start', 
-  position: { x: 100, y: 100 }, 
-  data: { label: 'Start', type: 'Conversation', prompt: '' }, 
-  type: 'custom' 
+const defaultNode: Node = {
+  id: 'start',
+  position: { x: 100, y: 100 },
+  data: {
+    id: 'start',
+    name: 'Start',
+    type: 'conversation',
+    isStart: true,
+    prompt: 'You are a helpful assistant. Respond naturally to the user and determine if they are interested in your services. If they show interest, guide them positively. If they decline or seem uninterested, politely end the conversation.',
+    messagePlan: {
+      firstMessage: 'Hi! Are you free to talk about how we can help your business grow?'
+    },
+    variableExtractionPlan: {
+      output: [
+        {
+          type: 'string',
+          title: 'user_interest',
+          description: 'Whether the user shows interest in the conversation',
+          enum: ['positive', 'negative', 'neutral']
+        }
+      ]
+    },
+    trigger: {
+      positive: ['yes', 'sure', 'interested', 'tell me more', 'sounds good', 'definitely'],
+      negative: ['no', 'not interested', 'busy', 'not now', 'not today', 'decline'],
+      conditions: [
+        {
+          type: 'ai',
+          value: 'Determine if the user shows interest in the conversation based on their response',
+          response: 'positive'
+        },
+        {
+          type: 'ai',
+          value: 'Determine if the user is declining or showing disinterest',
+          response: 'negative'
+        }
+      ]
+    }
+  } as VapiNodeData,
+  type: 'vapi'
 }
 
-const nodeTypes = { custom: CustomNode }
+const nodeTypes = { 
+  vapi: VapiNode,
+  // Fallback for any legacy nodes with different types
+  tool: VapiNode,
+  condition: VapiNode,
+  api: VapiNode,
+  conversation: VapiNode
+}
 
 export default function WorkflowCanvas() {
   const { nodes, edges, setGraph, setSelectedNodeId, setSelectedEdgeId } = useWorkflowStore()
 
+  useEffect(() => {
+    console.log('WorkflowCanvas: Current nodes:', nodes.length, nodes)
+    console.log('WorkflowCanvas: Current edges:', edges.length, edges)
+  }, [nodes, edges])
+
   const onConnect = useCallback((params: Connection | Edge) => {
-    const edgeId = `${params.source}-${params.target}`
+    const edgeId = `${params.source}-${params.target}-${(params as any).sourceHandle || 'default'}`
     let label: string | undefined
-    let style = { stroke: '#4f8cff', strokeWidth: 2 }
+    let style = { stroke: '#6b7280', strokeWidth: 2, strokeDasharray: '5, 5' }
 
     // Auto-label and color by source handle
     if ((params as any).sourceHandle === 'positive') {
       label = 'user said yes'
-      style = { stroke: '#22c55e', strokeWidth: 2 }
+      style = { stroke: '#22c55e', strokeWidth: 2, strokeDasharray: '5, 5' }
     } else if ((params as any).sourceHandle === 'negative') {
       label = 'user said no'
-      style = { stroke: '#ef4444', strokeWidth: 2 }
+      style = { stroke: '#ef4444', strokeWidth: 2, strokeDasharray: '5, 5' }
     }
 
     const styled = { 
       ...params, 
       id: edgeId,
-      animated: true, 
+      animated: false, 
       label,
-      labelBgPadding: label ? [6,2] : undefined,
-      labelBgBorderRadius: label ? 4 : undefined,
-      labelBgStyle: label ? { fill: '#2a2f3a', color: '#fff' } : undefined,
-      style
+      labelStyle: { 
+        fill: '#fbbf24',
+        fontWeight: 500,
+        fontSize: '12px'
+      },
+      labelBgPadding: label ? [8, 4] : undefined,
+      labelBgBorderRadius: label ? 6 : undefined,
+      labelBgStyle: label ? { 
+        fill: '#78350f', 
+        fillOpacity: 0.9
+      } : undefined,
+      style,
+      type: 'smoothstep' // Use smoothstep for better edge routing
     } as Edge
     setGraph(nodes, addEdge(styled, edges))
   }, [nodes, edges, setGraph])
@@ -71,11 +127,21 @@ export default function WorkflowCanvas() {
     setSelectedEdgeId(null)
   }, [setSelectedNodeId, setSelectedEdgeId])
 
-  const rfNodes = nodes.length ? nodes : [defaultNode]
+  // Ensure all nodes have valid position data and correct type
+  const rfNodes = nodes.length ? nodes.map((node, index) => {
+    const nodeId = node.id || `node-${index}`
+    return {
+      ...node,
+      id: nodeId, // Ensure unique ID
+      type: 'vapi', // Ensure all nodes use the vapi type
+      position: node.position || { x: 100, y: 100 },
+      key: nodeId // Add explicit key for React
+    }
+  }) : [defaultNode]
 
 
   return (
-    <div style={{height:'100%'}}>
+    <div style={{ height: '100%', background: '#0a0b0d' }}>
       <ReactFlow
         nodeTypes={nodeTypes}
         nodes={rfNodes}
@@ -90,19 +156,49 @@ export default function WorkflowCanvas() {
         fitView
         connectionRadius={30}
         snapToGrid
-        snapGrid={[10,10]}
+        snapGrid={[20, 20]}
         connectOnClick={false}
         elementsSelectable
         nodesConnectable
         nodesDraggable
         defaultEdgeOptions={{
-          animated: true,
-          style: { stroke: '#4f8cff', strokeWidth: 2 }
+          animated: false,
+          type: 'smoothstep',
+          style: { stroke: '#6b7280', strokeWidth: 2, strokeDasharray: '5, 5' }
+        }}
+        style={{
+          background: '#0a0b0d'
         }}
       >
-        <Background />
-        <MiniMap />
-        <Controls />
+        <Background 
+          color="#1e293b" 
+          gap={20} 
+          size={1}
+          style={{
+            background: '#0a0b0d'
+          }}
+        />
+        <MiniMap 
+          style={{
+            background: '#111318',
+            border: '1px solid #1e293b'
+          }}
+          nodeColor={(node) => {
+            if (node.data?.type === 'conversation') return '#22c55e'
+            if (node.data?.type === 'tool') return '#4f8cff'
+            if (node.data?.type === 'condition') return '#f59e0b'
+            if (node.data?.type === 'api') return '#a78bfa'
+            return '#6b7280'
+          }}
+          maskColor="rgba(10, 11, 13, 0.8)"
+        />
+        <Controls 
+          style={{
+            background: '#111318',
+            border: '1px solid #1e293b',
+            borderRadius: '8px'
+          }}
+        />
       </ReactFlow>
     </div>
   )
