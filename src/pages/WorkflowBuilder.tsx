@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import Header from '../components/Header';
 import NodePanel from '../components/NodePanel';
-import NodeConfigPanel from '../components/NodeConfigPanel';
+import VapiNodeConfigPanel from '../components/VapiNodeConfigPanel';
 import GlobalConfig from '../components/GlobalConfig';
 import WorkflowCanvas from '../components/WorkflowCanvas';
 import Assistant from '../components/Assistant';
@@ -68,7 +68,7 @@ export default function WorkflowBuilder() {
           <div className="sidebar" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <h4>Config</h4>
-              <NodeConfigPanel />
+              <VapiNodeConfigPanel />
             </div>
             <div style={{ height: 12, borderTop: '1px solid var(--border)' }} />
             
