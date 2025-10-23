@@ -21,6 +21,7 @@ export default function CallInterface({ workflowId, onClose }: CallInterfaceProp
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected')
   const [userInput, setUserInput] = useState('')
   const [isListening, setIsListening] = useState(false)
+  const [currentInterim, setCurrentInterim] = useState('')
   
   const wsRef = useRef<WebSocket | null>(null)
   const timerRef = useRef<number | null>(null)
@@ -32,59 +33,127 @@ export default function CallInterface({ workflowId, onClose }: CallInterfaceProp
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [transcript])
 
-  // Initialize speech recognition
+  // Initialize speech recognition once
   useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
-      recognitionRef.current = new SpeechRecognition()
-      recognitionRef.current.continuous = true
-      recognitionRef.current.interimResults = false
-      recognitionRef.current.lang = 'en-US'
-
-      recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[event.results.length - 1][0].transcript
-        console.log('Speech recognized:', transcript)
-        sendMessage(transcript)
-      }
-
-      recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error)
-        if (event.error === 'no-speech') {
-          // User didn't speak, just restart
-          if (isListening && isCallActive) {
-            recognitionRef.current?.start()
-          }
-        }
-      }
-
-      recognitionRef.current.onend = () => {
-        // Restart if still in call and not muted
-        if (isListening && isCallActive && !isMuted) {
-          try {
-            recognitionRef.current?.start()
-          } catch (e) {
-            console.log('Recognition already started')
-          }
-        }
-      }
-    } else {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       console.warn('Speech recognition not supported in this browser')
       toast.error('Speech recognition not supported. Please use Chrome or Edge.')
+      return
     }
+
+    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition
+    const recognition = new SpeechRecognition()
+    
+    recognition.continuous = true
+    recognition.interimResults = true // Enable interim results to see partial transcripts
+    recognition.lang = 'en-US'
+    recognition.maxAlternatives = 1
+
+    let finalTranscript = ''
+    let interimTranscript = ''
+
+    recognition.onstart = () => {
+      console.log('🎤 Speech recognition started')
+      setIsListening(true)
+      finalTranscript = ''
+      interimTranscript = ''
+    }
+
+    recognition.onresult = (event: any) => {
+      interimTranscript = ''
+      
+      // Process all results
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript
+        
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + ' '
+          console.log('✅ Final transcript:', transcript)
+        } else {
+          interimTranscript += transcript
+          console.log('⏳ Interim transcript:', transcript)
+        }
+      }
+      
+      // Show interim results to user
+      setCurrentInterim(interimTranscript)
+      
+      // Send final transcript when we have it
+      if (finalTranscript.trim()) {
+        const textToSend = finalTranscript.trim()
+        console.log('📤 Sending to backend:', textToSend)
+        
+        // Clear interim display
+        setCurrentInterim('')
+        
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          // Add to transcript
+          setTranscript(prev => [...prev, {
+            role: 'user',
+            content: textToSend,
+            timestamp: new Date().toISOString()
+          }])
+          
+          // Send to backend
+          wsRef.current.send(JSON.stringify({ text: textToSend }))
+          
+          // Clear final transcript after sending
+          finalTranscript = ''
+        }
+      }
+    }
+
+    recognition.onerror = (event: any) => {
+      console.error('❌ Speech recognition error:', event.error)
+      
+      if (event.error === 'not-allowed') {
+        toast.error('Microphone access denied. Please allow microphone access.')
+        setIsListening(false)
+      } else if (event.error === 'no-speech') {
+        console.log('⚠️ No speech detected, will auto-restart...')
+        // Don't show error to user, just continue
+      } else if (event.error === 'aborted') {
+        console.log('🛑 Recognition aborted')
+      } else if (event.error === 'audio-capture') {
+        toast.error('Microphone not available. Please check your device.')
+        setIsListening(false)
+      } else {
+        console.error(`Microphone error: ${event.error}`)
+      }
+    }
+
+    recognition.onend = () => {
+      console.log('🛑 Speech recognition ended')
+      setIsListening(false)
+      
+      // Auto-restart if call is still active and not muted
+      if (isCallActive && !isMuted) {
+        console.log('🔄 Auto-restarting speech recognition in 300ms...')
+        setTimeout(() => {
+          try {
+            if (recognitionRef.current && isCallActive && !isMuted) {
+              recognition.start()
+              console.log('✅ Speech recognition restarted')
+            }
+          } catch (e: any) {
+            if (!e.message?.includes('already started')) {
+              console.log('⚠️ Could not restart:', e.message)
+            }
+          }
+        }, 300) // Slightly longer delay to prevent conflicts
+      }
+    }
+
+    recognitionRef.current = recognition
 
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.stop()
+        try {
+          recognitionRef.current.stop()
+        } catch (e) {
+          console.log('Cleanup: recognition already stopped')
+        }
       }
-    }
-  }, [])
-
-  // Handle listening state changes
-  useEffect(() => {
-    if (isCallActive && !isMuted) {
-      startListening()
-    } else {
-      stopListening()
     }
   }, [isCallActive, isMuted])
 
@@ -136,26 +205,33 @@ export default function CallInterface({ workflowId, onClose }: CallInterfaceProp
   }
 
   const startListening = () => {
-    if (recognitionRef.current && !isListening) {
-      try {
-        recognitionRef.current.start()
-        setIsListening(true)
-        console.log('Started listening')
-      } catch (e) {
-        console.log('Recognition already active')
+    if (!recognitionRef.current) {
+      console.log('❌ Recognition not initialized')
+      return
+    }
+
+    try {
+      console.log('▶️ Starting speech recognition...')
+      recognitionRef.current.start()
+    } catch (e: any) {
+      if (e.message && e.message.includes('already started')) {
+        console.log('✅ Recognition already running')
+      } else {
+        console.error('❌ Error starting recognition:', e)
+        toast.error('Could not start microphone. Please check permissions.')
       }
     }
   }
 
   const stopListening = () => {
-    if (recognitionRef.current && isListening) {
-      try {
-        recognitionRef.current.stop()
-        setIsListening(false)
-        console.log('Stopped listening')
-      } catch (e) {
-        console.log('Error stopping recognition')
-      }
+    if (!recognitionRef.current) return
+
+    try {
+      console.log('⏸️ Stopping speech recognition...')
+      recognitionRef.current.stop()
+      setIsListening(false)
+    } catch (e) {
+      console.log('Recognition already stopped')
     }
   }
 
@@ -188,13 +264,18 @@ export default function CallInterface({ workflowId, onClose }: CallInterfaceProp
         setIsConnected(true)
         setIsCallActive(true)
         setConnectionStatus('connected')
-        toast.success('Call connected')
+        toast.success('Call connected - Microphone starting...')
         
         // Send initial message to start conversation
         ws.send(JSON.stringify({ 
           type: 'start_conversation',
           text: 'Hello'
         }))
+        
+        // Start listening after a brief delay
+        setTimeout(() => {
+          startListening()
+        }, 500)
       }
 
       ws.onmessage = (event) => {
@@ -488,24 +569,37 @@ export default function CallInterface({ workflowId, onClose }: CallInterfaceProp
           <div style={{
             padding: '12px',
             textAlign: 'center',
-            background: '#16a34a',
+            background: currentInterim ? '#3b82f6' : '#16a34a',
             color: '#ffffff',
             fontSize: '14px',
             fontWeight: '500',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             gap: '8px',
-            animation: 'pulse 2s infinite'
+            minHeight: '50px'
           }}>
-            <span style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: '#ffffff',
-              animation: 'blink 1s infinite'
-            }} />
-            🎤 Listening...
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: '#ffffff',
+                animation: currentInterim ? 'blink 0.5s infinite' : 'blink 1s infinite'
+              }} />
+              {currentInterim ? '🗣️ Speaking...' : '🎤 Listening...'}
+            </div>
+            {currentInterim && (
+              <div style={{
+                fontSize: '12px',
+                fontStyle: 'italic',
+                opacity: 0.9,
+                marginTop: '4px'
+              }}>
+                "{currentInterim}"
+              </div>
+            )}
           </div>
         )}
 
